@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Codex Map Collector</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root{
+      --bg:#0f1117;--surface:#1a1d27;--s2:#222536;--s3:#2a2e45;
+      --border:#2e3347;--accent:#6366f1;--a2:#818cf8;
+      --text:#e2e8f0;--muted:#64748b;
+      --ok:#22c55e;--warn:#f59e0b;--err:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;
+         margin:0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+    ::-webkit-scrollbar{width:5px;height:5px}
+    ::-webkit-scrollbar-track{background:var(--surface)}
+    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+    a{color:inherit;text-decoration:none}
+
+    /* ── TOPBAR ── */
+    #topbar{display:flex;align-items:center;background:var(--surface);
+            border-bottom:1px solid var(--border);padding:0 16px;height:50px;flex-shrink:0;gap:2px}
+    .logo{font-weight:700;font-size:1rem;color:var(--a2);margin-right:20px;white-space:nowrap}
+    .logo small{display:block;color:var(--muted);font-weight:600;font-size:.58rem;line-height:1;margin-top:2px}
+    .tab-btn{padding:0 16px;height:50px;border:none;background:none;color:var(--muted);
+             font-size:.8rem;cursor:pointer;border-bottom:2px solid transparent;
+             transition:all .15s;display:flex;align-items:center;gap:6px;white-space:nowrap}
+    .tab-btn:hover{color:var(--text)}
+    .tab-btn.active{color:var(--a2);border-bottom-color:var(--accent)}
+    .agent-chip{margin-left:auto;display:flex;align-items:center;gap:7px;
+                background:var(--s2);border:1px solid var(--border);border-radius:20px;
+                padding:4px 14px;font-size:.78rem;cursor:pointer;white-space:nowrap}
+    .dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+    .dot.ok{background:var(--ok)}
+
+    /* ── PANELS ── */
+    #main{display:flex;flex:1;min-height:0}
+    .panel{display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+    .panel.active{display:flex}
+
+    /* ── COMMON INPUTS ── */
+    .inp{width:100%;background:var(--s2);border:1px solid var(--border);border-radius:8px;
+         padding:8px 12px;color:var(--text);font-size:.82rem;outline:none;transition:border-color .15s}
+    .inp:focus{border-color:var(--accent)}
+    .sel{background:var(--s2);border:1px solid var(--border);border-radius:8px;
+         padding:7px 10px;color:var(--text);font-size:.82rem;outline:none;cursor:pointer}
+    .lbl{font-size:.72rem;color:var(--muted);font-weight:600;text-transform:uppercase;
+         letter-spacing:.04em;display:block;margin-bottom:5px}
+    .fg{margin-bottom:12px}
+
+    /* ── BUTTONS ── */
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;
+         border:none;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s}
+    .btn:disabled{opacity:.4;cursor:not-allowed}
+    .btn-accent{background:var(--accent);color:#fff}.btn-accent:not(:disabled):hover{background:var(--a2)}
+    .btn-ghost{background:var(--s2);color:var(--text);border:1px solid var(--border)}
+    .btn-ghost:not(:disabled):hover{border-color:var(--accent);color:var(--a2)}
+    .btn-ok{background:rgba(34,197,94,.15);color:var(--ok);border:1px solid rgba(34,197,94,.3)}
+    .btn-warn{background:rgba(239,68,68,.12);color:var(--err);border:1px solid rgba(239,68,68,.25)}
+    .btn-full{width:100%;justify-content:center;margin-bottom:8px}
+
+    /* ── SIDEBAR ── */
+    .sidebar{width:260px;background:var(--surface);border-right:1px solid var(--border);
+             display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+    .sidebar-hd{padding:10px 14px;border-bottom:1px solid var(--border);
+                font-size:.7rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+    .sidebar-body{flex:1;overflow-y:auto;padding:10px}
+
+    /* ── LOG BOX ── */
+    .logbox{background:var(--s2);border:1px solid var(--border);border-radius:8px;
+            padding:10px 12px;font-size:.72rem;font-family:monospace;max-height:180px;
+            overflow-y:auto;color:#94a3b8;line-height:1.6}
+    .logbox .ll{padding:1px 0}.logbox .ll.e{color:var(--err)}.logbox .ll.s{color:var(--ok)}
+
+    /* ── TABLE ── */
+    .tbl-wrap{overflow:auto;flex:1}
+    .tbl-wrap table{width:100%;border-collapse:collapse;font-size:.75rem}
+    .tbl-wrap th{background:var(--s2);color:var(--muted);padding:7px 10px;text-align:left;
+                 white-space:nowrap;position:sticky;top:0;z-index:1;border-bottom:1px solid var(--border);
+                 font-weight:600;cursor:pointer;user-select:none}
+    .tbl-wrap th:hover{color:var(--text)}
+    .tbl-wrap td{padding:6px 10px;border-bottom:1px solid var(--border);max-width:180px;
+                 overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .tbl-wrap tr:hover td{background:var(--s2)}
+    .tbl-wrap tr.sel-row td{background:rgba(99,102,241,.12)}
+    .tbl-wrap td.editing{background:var(--s3) !important;padding:0}
+    .tbl-wrap td.editing input{background:transparent;border:none;outline:2px solid var(--accent);
+                               color:var(--text);width:100%;padding:6px 10px;font-size:.75rem}
+
+    /* ── DETAIL PANE ── */
+    .detail-pane{width:340px;background:var(--surface);border-left:1px solid var(--border);
+                 overflow-y:auto;flex-shrink:0;display:flex;flex-direction:column}
+    .dp-sec{padding:14px 16px;border-bottom:1px solid var(--border)}
+    .dp-sec h3{font-size:.68rem;color:var(--muted);text-transform:uppercase;font-weight:700;
+               letter-spacing:.05em;margin-bottom:10px}
+    .dp-row{display:flex;gap:8px;margin-bottom:7px;font-size:.8rem}
+    .dp-row .k{color:var(--muted);flex-shrink:0;width:110px;font-size:.75rem}
+    .dp-row .v{color:var(--text);word-break:break-word;font-size:.78rem}
+
+    /* ── FILTER BAR ── */
+    .filter-bar{display:flex;gap:8px;padding:8px 12px;background:var(--surface);
+                border-bottom:1px solid var(--border);align-items:center;flex-shrink:0;flex-wrap:wrap}
+    .chip{padding:3px 10px;border-radius:20px;font-size:.72rem;cursor:pointer;
+          background:var(--s2);border:1px solid var(--border);color:var(--muted);transition:all .15s}
+    .chip:hover,.chip.on{background:rgba(99,102,241,.15);border-color:var(--accent);color:var(--a2)}
+    .badge{background:var(--s2);border:1px solid var(--border);border-radius:20px;
+           padding:2px 10px;font-size:.7rem;color:var(--muted)}
+
+    /* ── STYLES GRID ── */
+    .styles-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+    .style-card{border-radius:8px;border:2px solid var(--border);cursor:pointer;overflow:hidden;transition:all .15s}
+    .style-card:hover,.style-card.sel{border-color:var(--accent)}
+    .style-card.sel{box-shadow:0 0 0 2px rgba(99,102,241,.3)}
+    .style-card .sc-c{height:50px}
+    .style-card .sc-i{padding:7px 8px;background:var(--s2)}
+    .style-card .sc-n{font-size:.72rem;font-weight:600}
+    .style-card .sc-d{font-size:.65rem;color:var(--muted);margin-top:2px}
+
+    /* ── VIOLATION ── */
+    .viol{border-radius:8px;padding:10px 12px;margin-bottom:8px;border-left:3px solid}
+    .viol.critical{background:rgba(239,68,68,.1);border-color:var(--err)}
+    .viol.high{background:rgba(245,158,11,.1);border-color:var(--warn)}
+    .viol.medium{background:rgba(99,102,241,.1);border-color:var(--accent)}
+    .viol .vt{font-size:.8rem;font-weight:600}
+    .viol .vl{font-size:.7rem;color:var(--muted);margin-top:3px}
+    .viol .vf{font-size:.72rem;font-weight:700;margin-top:3px}
+    .viol.critical .vf{color:var(--err)}.viol.high .vf{color:var(--warn)}.viol.medium .vf{color:var(--a2)}
+
+    /* ── SCREEN GRID ── */
+    .sc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .sc-thumb{border-radius:6px;overflow:hidden;border:1px solid var(--border);cursor:pointer;transition:transform .15s}
+    .sc-thumb:hover{transform:scale(1.02);border-color:var(--accent)}
+    .sc-thumb img{width:100%;display:block}
+    .sc-thumb .sc-lbl{padding:4px 7px;background:var(--s2);font-size:.65rem;color:var(--muted)}
+
+    /* ── MODAL ── */
+    .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;
+              display:flex;align-items:center;justify-content:center}
+    .modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+           padding:28px;max-width:560px;width:90%;max-height:80vh;overflow-y:auto}
+    .modal h2{font-size:1rem;font-weight:700;margin-bottom:16px}
+
+    /* ── SEND STATUS ── */
+    .send-row{display:flex;align-items:center;gap:10px;padding:10px 14px;
+              background:var(--s2);border-radius:8px;border:1px solid var(--border);margin-bottom:8px}
+    .send-status{width:80px;font-size:.7rem;font-weight:700;text-align:center;padding:2px 6px;border-radius:10px}
+    .ss-wait{background:rgba(100,116,139,.2);color:var(--muted)}
+    .ss-sent{background:rgba(34,197,94,.15);color:var(--ok)}
+    .ss-visit{background:rgba(245,158,11,.15);color:var(--warn)}
+
+    /* ── CHAT BAR ── */
+    .chat-bar{background:var(--surface);border-top:1px solid var(--border);
+              padding:8px 12px;display:flex;gap:8px;flex-shrink:0;align-items:flex-end}
+    .chat-bar textarea{flex:1;background:var(--s2);border:1px solid var(--border);border-radius:8px;
+                       padding:8px 12px;color:var(--text);font-size:.8rem;resize:none;outline:none;
+                       min-height:36px;max-height:100px;transition:border-color .15s;font-family:inherit}
+    .chat-bar textarea:focus{border-color:var(--accent)}
+    .chat-out{background:var(--s2);border:1px solid var(--border);border-radius:8px;
+              padding:12px;font-size:.78rem;line-height:1.7;margin:0 12px 8px;
+              display:none;white-space:pre-wrap;color:var(--text)}
+
+    /* ── MISC ── */
+    .sec-title{font-size:.68rem;color:var(--muted);text-transform:uppercase;font-weight:700;
+               letter-spacing:.05em;padding:10px 0 5px;border-top:1px solid var(--border);margin-top:10px}
+    .seg-badge{display:inline-block;font-size:.62rem;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:5px}
+    .seg-a{background:rgba(34,197,94,.2);color:var(--ok)}
+    .seg-b{background:rgba(245,158,11,.2);color:var(--warn)}
+    .seg-c{background:rgba(239,68,68,.15);color:var(--err)}
+    .upload-zone{border:2px dashed var(--border);border-radius:12px;padding:40px;text-align:center;
+                 cursor:pointer;transition:all .2s;margin:20px}
+    .upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:rgba(99,102,241,.05)}
+    .spinner{width:16px;height:16px;border-radius:50%;border:2px solid var(--border);
+             border-top-color:var(--accent);animation:spin 1s linear infinite;flex-shrink:0}
+    /* ── HA GALLERY ── */
+    .ha-tmpl-row{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;
+                 cursor:pointer;border:1px solid transparent;transition:all .12s;position:relative}
+    .ha-tmpl-row:hover{background:var(--s2);border-color:var(--border)}
+    .ha-tmpl-row.sel{background:rgba(99,102,241,.12);border-color:var(--accent)}
+    .ha-tmpl-row .emoji{font-size:1.1rem;flex-shrink:0;width:24px;text-align:center}
+    .ha-tmpl-row .info{flex:1;min-width:0}
+    .ha-tmpl-row .t-name{font-size:.78rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ha-tmpl-row .t-cat{font-size:.65rem;color:var(--muted);margin-top:1px}
+    .ha-tmpl-row .use-btn{opacity:0;font-size:.65rem;padding:2px 8px;transition:opacity .15s}
+    .ha-tmpl-row:hover .use-btn{opacity:1}
+    .cat-chip{padding:2px 8px;border-radius:20px;font-size:.65rem;cursor:pointer;
+              background:var(--s2);border:1px solid var(--border);color:var(--muted);
+              transition:all .12s;white-space:nowrap}
+    .cat-chip:hover,.cat-chip.on{background:rgba(99,102,241,.15);border-color:var(--accent);color:var(--a2)}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .info-box{background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);
+              border-radius:8px;padding:10px 14px;font-size:.78rem;color:var(--a2);margin-bottom:12px}
+    .only-no-site{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);
+                  border-radius:8px;padding:8px 12px;font-size:.75rem;color:var(--warn);margin-bottom:10px}
+  </style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="logo">Codex Map Collector<small>made with Codex</small></div>
+  <button class="tab-btn active" data-tab="parser" onclick="switchTab('parser')">🔍 Парсинг</button>
+  <button class="tab-btn" data-tab="enrich" onclick="switchTab('enrich')">⚡ Обогащение</button>
+  <button class="tab-btn" data-tab="legal" onclick="switchTab('legal')">⚖️ Аудит 152-ФЗ</button>
+  <button class="tab-btn" data-tab="landing" onclick="switchTab('landing')">🏗️ Лендинги</button>
+  <button class="tab-btn" data-tab="screens" onclick="switchTab('screens')">📸 Анализ сайтов</button>
+  <button class="tab-btn" data-tab="send" onclick="switchTab('send')">📤 Отправить</button>
+  <div class="agent-chip" onclick="openAgentModal()">
+    <div class="dot" id="agent-dot"></div>
+    <span id="agent-label">Загрузка...</span>
+  </div>
+  <button class="btn btn-ghost" style="margin-left:10px;padding:4px 10px;font-size:.75rem;color:var(--err);border-color:rgba(239,68,68,.3)" onclick="shutdownApp()" title="Выключить сервер">⏻ Выход</button>
+</div>
+
+<div id="main">
+
+<!-- ══════════════════════════════════════════
+     TAB 1: ПАРСИНГ
+══════════════════════════════════════════ -->
+<div class="panel active" id="tab-parser" style="flex-direction:row">
+  <div class="sidebar">
+    <div class="sidebar-hd">Универсальный парсер карт</div>
+    <div class="sidebar-body">
+      <div class="fg"><label class="lbl">Источник карт</label>
+        <select class="sel" id="p-provider" style="width:100%" onchange="onProviderChange()">
+          <option value="2gis">2GIS API</option>
+          <option value="yandex">Yandex Maps Search API</option>
+          <option value="google">Google Places API</option>
+          <option value="osm">OpenStreetMap / Nominatim</option>
+        </select>
+      </div>
+      <div class="fg" id="p-api-key-wrap" style="display:none"><label class="lbl">API key</label>
+        <input class="inp" id="p-api-key" type="password" placeholder="Ключ выбранного сервиса">
+        <label style="display:flex;gap:7px;align-items:center;font-size:.72rem;color:var(--muted);margin-top:6px">
+          <input type="checkbox" id="p-save-key"> Запомнить локально</label>
+      </div>
+      <div class="fg"><label class="lbl">Город</label>
+        <input class="inp" id="p-city" value="Amsterdam, Netherlands"></div>
+      <div class="fg"><label class="lbl">Поисковый запрос</label>
+        <input class="inp" id="p-query" value="real estate agencies"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="fg"><label class="lbl">Лимит</label>
+          <input class="inp" id="p-limit" type="number" value="200"></div>
+        <div class="fg"><label class="lbl">Пауза (сек)</label>
+          <input class="inp" id="p-sleep" type="number" value="3" step=".5"></div>
+      </div>
+      <label style="display:flex;gap:7px;align-items:center;font-size:.78rem;color:var(--muted);margin-bottom:6px">
+        <input type="checkbox" id="p-raw"> Сохранить сырой JSON</label>
+      <label id="p-fetch-reviews-wrap" style="display:flex;gap:7px;align-items:center;font-size:.78rem;color:var(--muted);margin-bottom:12px">
+        <input type="checkbox" id="p-fetch-reviews"> Собрать отзывы 2GIS (медленнее)</label>
+      <button class="btn btn-accent btn-full" onclick="startParser()">▶️ Запустить парсер</button>
+      <div id="p-result" style="display:none;margin-top:10px">
+        <div style="font-size:.8rem;color:var(--ok);margin-bottom:8px" id="p-result-text"></div>
+        <button class="btn btn-ghost btn-full" onclick="useParserResult()">📂 Открыть в обогащении</button>
+      </div>
+    </div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+    <div style="flex:1;padding:20px;overflow-y:auto">
+      <div id="p-idle" style="color:var(--muted);font-size:.875rem">
+        Заполните параметры и нажмите «Запустить парсер».<br><br>
+        Парсер собирает компании из выбранного источника: 2GIS, Yandex Maps, Google Places или OpenStreetMap. Результат сохраняется в едином CSV для таблицы, обогащения, лендингов и выгрузки.
+      </div>
+      <div id="p-running" style="display:none">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <div class="spinner"></div>
+          <span id="p-status" style="font-size:.85rem"></span>
+        </div>
+        <div class="logbox" id="p-log"></div>
+      </div>
+    </div>
+    <div class="chat-out" id="chat-out-parser"></div>
+    <div class="chat-bar">
+      <textarea id="chat-parser" placeholder="Напишите что хотите изменить в парсере... (Ctrl+Enter отправить)" rows="1"
+        onkeydown="chatKey(event,'parser')" oninput="autoResize(this)"></textarea>
+      <button class="btn btn-ghost" onclick="sendChat('parser')">↗ Запрос</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TAB 2: ОБОГАЩЕНИЕ + РЕДАКТОР ТАБЛИЦЫ
+══════════════════════════════════════════ -->
+<div class="panel" id="tab-enrich" style="flex-direction:column">
+  <!-- Sub-tabs -->
+  <div style="display:flex;gap:0;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0">
+    <button class="tab-btn active" id="st-enrich" onclick="switchSubTab('enrich','enrich')" style="font-size:.78rem">⚡ Обогащение</button>
+    <button class="tab-btn" id="st-table" onclick="switchSubTab('enrich','table')" style="font-size:.78rem">📊 Таблица / Редактор</button>
+    <button class="tab-btn" id="st-webrich" onclick="switchSubTab('enrich','webrich')" style="font-size:.78rem">🌐 Доп. поиск</button>
+  </div>
+
+  <!-- Sub: ОБОГАЩЕНИЕ -->
+  <div id="sub-enrich" style="display:flex;flex:1;min-height:0">
+    <div class="sidebar">
+      <div class="sidebar-hd">Обогащение данных</div>
+      <div class="sidebar-body">
+        <div class="info-box">Проверяет каждый сайт через Playwright: статус, email, соцсети, свежесть. Результат — Excel с листами A/B/C.</div>
+        <div class="fg"><label class="lbl">Файл (XLSX/CSV)</label>
+          <input class="inp" id="e-path" placeholder="Путь к файлу...">
+          <div style="margin-top:5px;display:flex;gap:6px">
+            <label class="btn btn-ghost" style="padding:5px 10px;font-size:.72rem;cursor:pointer">
+              📂 Выбрать
+              <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="setEnrichFile(this)">
+            </label>
+            <button class="btn btn-ghost" style="padding:5px 10px;font-size:.72rem" onclick="useParserForEnrich()">← Из парсера</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div class="fg"><label class="lbl">Потоков</label>
+            <input class="inp" id="e-workers" type="number" value="3"></div>
+          <div class="fg"><label class="lbl">Таймаут мс</label>
+            <input class="inp" id="e-timeout" type="number" value="25000"></div>
+        </div>
+        <label style="display:flex;gap:7px;align-items:center;font-size:.78rem;color:var(--muted);margin-bottom:12px">
+          <input type="checkbox" id="e-expand-soc" checked> Разбить соцсети по столбцам</label>
+        <label style="display:flex;gap:7px;align-items:center;font-size:.78rem;color:var(--muted);margin-bottom:12px">
+          <input type="checkbox" id="e-collect-reviews" checked> Собрать отзывы в таблицу</label>
+        <button class="btn btn-accent btn-full" onclick="startEnrich()">⚡ Запустить обогащение</button>
+        <div id="e-result" style="display:none;margin-top:10px">
+          <div style="font-size:.8rem;color:var(--ok);margin-bottom:8px">✅ Обогащение завершено</div>
+          <button class="btn btn-ghost btn-full" onclick="loadEnrichResult()">📂 Открыть таблицу</button>
+          <button class="btn btn-ghost btn-full" onclick="downloadEnrichResult()">💾 Скачать XLSX</button>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;min-width:0;padding:16px;overflow-y:auto">
+      <div id="e-idle" style="color:var(--muted);font-size:.875rem">Выберите файл и запустите обогащение.</div>
+      <div id="e-running" style="display:none">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="spinner"></div>
+            <span id="e-status" style="font-size:.85rem"></span>
+          </div>
+          <button class="btn btn-ghost" style="padding:4px 10px;color:var(--err)" onclick="stopJob(S.enrichJobId)">🛑 Остановить</button>
+        </div>
+        <div class="logbox" id="e-log"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub: ТАБЛИЦА / РЕДАКТОР -->
+  <div id="sub-table" style="display:none;flex:1;flex-direction:column;min-height:0">
+    <div class="filter-bar">
+      <input class="inp" id="t-search" placeholder="🔍 Поиск..." style="width:200px" oninput="applyFilters()">
+      <select class="sel" id="t-seg" onchange="applyFilters()">
+        <option value="">Все сегменты</option>
+        <option value="A">A — сайт + email</option>
+        <option value="B">B — сайт есть</option>
+        <option value="C">C — без сайта</option>
+      </select>
+      <div class="chip" id="ch-nosite" onclick="toggleChip(this,'no_site')">Без сайта</div>
+      <div class="chip" id="ch-hasemail" onclick="toggleChip(this,'has_email')">Есть email</div>
+      <div style="margin-left:auto;display:flex;gap:7px;align-items:center">
+        <span class="badge" id="t-count">0</span>
+        <button class="btn btn-ghost" style="padding:5px 12px" onclick="selectAllRows()">☑ Все</button>
+        <button class="btn btn-ghost" style="padding:5px 12px" onclick="addRow()">＋ Строка</button>
+        <button class="btn btn-warn" style="padding:5px 12px" onclick="deleteSelectedRows()">🗑 Удалить</button>
+        <button class="btn btn-ghost" style="padding:5px 12px" onclick="openColumnsModal()">▦ Колонки</button>
+        <button class="btn btn-ghost" style="padding:5px 12px" onclick="saveTableEdits()">💾 Сохранить</button>
+        <button class="btn btn-accent" style="padding:5px 12px" onclick="openBatchModal()">▶ Пакет</button>
+      </div>
+    </div>
+    <div id="table-source-bar" style="padding:7px 14px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;font-size:.74rem;color:var(--muted);flex-shrink:0">
+      <span style="font-weight:600">Загрузить:</span>
+      <button class="btn btn-ghost" id="btn-load-parser" style="padding:3px 11px;font-size:.72rem" onclick="loadFromParser()" disabled title="Загрузить результат парсинга">⬅ Из парсера</button>
+      <button class="btn btn-ghost" id="btn-load-enricher" style="padding:3px 11px;font-size:.72rem" onclick="loadFromEnricher()" disabled title="Загрузить результат обогащения">⬅ Из обогащения</button>
+      <label class="btn btn-ghost" style="padding:3px 11px;font-size:.72rem;cursor:pointer">
+        📂 Файл <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="uploadTableFile(this)">
+      </label>
+    </div>
+    <div style="flex:1;display:flex;min-height:0">
+      <div class="tbl-wrap" id="tbl-wrap">
+        <div class="upload-zone" onclick="document.getElementById('tbl-upload').click()"
+          ondragover="event.preventDefault();this.classList.add('drag')"
+          ondragleave="this.classList.remove('drag')"
+          ondrop="handleTableDrop(event)">
+          <div style="font-size:2.5rem;margin-bottom:10px">📊</div>
+          <div style="font-size:1rem;font-weight:600;margin-bottom:6px">Загрузите таблицу</div>
+          <div style="font-size:.82rem;color:var(--muted)">XLSX, XLS или CSV · Перетащите или нажмите</div>
+          <input type="file" id="tbl-upload" accept=".xlsx,.xls,.csv" style="display:none" onchange="uploadTableFile(this)">
+        </div>
+      </div>
+      <div class="detail-pane" id="detail-pane" style="display:none">
+        <div class="dp-sec">
+          <h3>Компания</h3>
+          <div id="dp-name" style="font-size:.95rem;font-weight:700;margin-bottom:6px"></div>
+          <div id="dp-seg"></div>
+        </div>
+        <div class="dp-sec" id="dp-fields"></div>
+        <div class="dp-sec">
+          <h3>Действия</h3>
+          <button class="btn btn-accent btn-full" onclick="goLanding()">🏗️ Создать лендинг</button>
+          <button class="btn btn-ghost btn-full" onclick="goLegal()">⚖️ Проверить 152-ФЗ</button>
+          <button class="btn btn-ghost btn-full" onclick="goScreenshot()">📸 Скрины & концепт</button>
+          <button class="btn btn-ghost btn-full" onclick="goSend()">📤 В отправку</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub: ВЕБ-ПОИСК -->
+  <div id="sub-webrich" style="display:none;flex:1;flex-direction:column;min-height:0">
+    <div style="display:flex;flex:1;min-height:0">
+      <div class="sidebar">
+        <div class="sidebar-hd">Доп. поиск из интернета</div>
+        <div class="sidebar-body">
+          <div class="info-box">Ищет описания, отзывы и доп. инфо о компании через DuckDuckGo и Яндекс. Особенно полезно для компаний без сайта — данные нужны для лендинга.</div>
+          <div class="fg"><label class="lbl">Источник</label>
+            <select class="sel" style="width:100%" id="wr-source">
+              <option value="no_site">Только без сайта (из таблицы)</option>
+              <option value="selected">Выбранные в таблице</option>
+              <option value="all">Все из таблицы</option>
+            </select>
+          </div>
+          <div class="fg"><label class="lbl">Параллельность</label>
+            <input class="inp" id="wr-conc" type="number" value="3"></div>
+          <button class="btn btn-accent btn-full" onclick="startWebEnrich()">🌐 Запустить поиск</button>
+          <div id="wr-result" style="display:none;margin-top:10px">
+            <div style="font-size:.8rem;color:var(--ok);margin-bottom:8px">✅ Поиск завершён</div>
+            <button class="btn btn-ghost btn-full" onclick="mergeWebEnrich()">🔗 Добавить в таблицу</button>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1;padding:16px;overflow-y:auto">
+        <div id="wr-idle" style="color:var(--muted);font-size:.875rem">Поиск найдёт описания компаний и отзывы, которые потом используются при генерации лендинга.</div>
+        <div id="wr-running" style="display:none">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <div class="spinner"></div>
+            <span id="wr-status" style="font-size:.85rem"></span>
+          </div>
+          <div class="logbox" id="wr-log"></div>
+        </div>
+        <div id="wr-results-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-out" id="chat-out-enrich"></div>
+  <div class="chat-bar">
+    <textarea id="chat-enrich" placeholder="Напишите что нужно изменить в обогащении или таблице..." rows="1"
+      onkeydown="chatKey(event,'enrich')" oninput="autoResize(this)"></textarea>
+    <button class="btn btn-ghost" onclick="sendChat('enrich')">↗ Запрос</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TAB 3: АУДИТ 152-ФЗ
+══════════════════════════════════════════ -->
+<div class="panel" id="tab-legal" style="flex-direction:row">
+  <div class="sidebar">
+    <div class="sidebar-hd">Аудит 152-ФЗ</div>
+    <div class="sidebar-body">
+      <div class="only-no-site">⚠️ Только для компаний с подтверждённым рабочим сайтом. Без сайта — проверять нечего.</div>
+      <div class="fg"><label class="lbl">Источник URL</label>
+        <select class="sel" style="width:100%" id="leg-src" onchange="onLegalSrcChange()">
+          <option value="live">Из таблицы (живые сайты, сегмент A+B)</option>
+          <option value="selected">Выбранные в таблице</option>
+          <option value="manual">Ввести вручную</option>
+        </select>
+      </div>
+      <div id="leg-manual" style="display:none">
+        <div class="fg"><label class="lbl">URL (каждый с новой строки)</label>
+          <textarea class="inp" id="leg-urls" rows="6" placeholder="https://example.ru&#10;https://another.ru"></textarea>
+        </div>
+      </div>
+      <div class="fg">
+        <label style="display:flex;gap:7px;align-items:center;font-size:.78rem;color:var(--muted)">
+          <input type="checkbox" id="leg-ai"> AI-анализ (подробнее, но медленнее)</label>
+      </div>
+      <button class="btn btn-accent btn-full" onclick="startLegal()">⚖️ Запустить проверку</button>
+      <div id="leg-running" style="display:none;margin-top:10px">
+        <div class="logbox" id="leg-log"></div>
+      </div>
+      <div class="sec-title">ПАМЯТКА 152-ФЗ</div>
+      <div id="memo-text" style="font-size:.72rem;color:var(--muted);line-height:1.6;max-height:200px;
+           overflow-y:auto;background:var(--s2);border-radius:8px;padding:10px;margin-top:6px"></div>
+    </div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;min-height:0">
+    <div style="flex:1;overflow-y:auto;padding:16px">
+      <div id="leg-idle" style="color:var(--muted);font-size:.875rem">Результаты появятся здесь.</div>
+      <div id="leg-results" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h3 style="font-size:.95rem;font-weight:700">Результаты аудита</h3>
+          <button class="btn btn-ghost" style="padding:5px 12px" onclick="downloadLegalReport()">💾 JSON-отчёт</button>
+        </div>
+        <div id="leg-list"></div>
+      </div>
+    </div>
+    <div class="chat-out" id="chat-out-legal"></div>
+    <div class="chat-bar">
+      <textarea id="chat-legal" placeholder="Опишите что добавить в проверку или что непонятно..." rows="1"
+        onkeydown="chatKey(event,'legal')" oninput="autoResize(this)"></textarea>
+      <button class="btn btn-ghost" onclick="sendChat('legal')">↗ Запрос</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TAB 4: ЛЕНДИНГИ
+══════════════════════════════════════════ -->
+<div class="panel" id="tab-landing" style="flex-direction:column">
+  <div style="display:flex;gap:0;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0">
+    <button class="tab-btn active" id="lst-table" onclick="switchLandingTab('table')">📊 1. Таблица</button>
+    <button class="tab-btn" id="lst-research" onclick="switchLandingTab('research')">🌐 2. Сбор данных</button>
+    <button class="tab-btn" id="lst-md" onclick="switchLandingTab('md')">📝 3. MD</button>
+    <button class="tab-btn" id="lst-html" onclick="switchLandingTab('html')">🏗️ 4. HTML</button>
+    <button class="tab-btn" id="lst-send" onclick="switchLandingTab('send')">📤 5. Отправка</button>
+    <button class="tab-btn" id="lst-templates" onclick="switchLandingTab('templates')" style="margin-left:auto">🎨 Шаблоны</button>
+  </div>
+
+  <div id="lsub-table" style="display:flex;flex:1;flex-direction:column;min-height:0">
+    <div class="filter-bar">
+      <input class="inp" id="l-search" placeholder="🔍 Поиск по агентствам..." style="width:240px" oninput="renderLandingTable()">
+      <select class="sel" id="l-filter" onchange="renderLandingTable()">
+        <option value="landing">Без сайта + уже выбранные</option>
+        <option value="selected">Только отмеченные</option>
+        <option value="all">Все строки</option>
+      </select>
+      <span class="badge" id="l-table-count">0</span>
+      <button class="btn btn-ghost" style="padding:5px 12px" onclick="toggleLandingAll(true)">☑ Все в списке</button>
+      <button class="btn btn-ghost" style="padding:5px 12px" onclick="toggleLandingAll(false)">☐ Снять</button>
+      <button class="btn btn-warn" style="padding:5px 12px" onclick="deleteSelectedRows()">🗑 Удалить</button>
+      <button class="btn btn-ghost" style="padding:5px 12px" onclick="openColumnsModal()">▦ Колонки</button>
+      <button class="btn btn-accent" style="padding:5px 12px;margin-left:auto" onclick="switchLandingTab('research')">Дальше: сбор данных</button>
+    </div>
+    <div class="tbl-wrap" id="l-table-wrap" style="flex:1"></div>
+  </div>
+
+  <div id="lsub-research" style="display:none;flex:1;min-height:0">
+    <div class="sidebar" style="width:300px">
+      <div class="sidebar-hd">Сбор данных для лендинга</div>
+      <div class="sidebar-body">
+        <div class="info-box">Собирает описание, отзывы и дополнительные тексты для отмеченных строк. Потом эти данные попадут в MD.</div>
+        <div class="fg"><label class="lbl">Источник</label>
+          <select class="sel" id="lr-source" style="width:100%">
+            <option value="selected">Отмеченные строки</option>
+            <option value="landing">Без сайта</option>
+            <option value="all">Все строки</option>
+          </select>
+        </div>
+        <div class="fg"><label class="lbl">Параллельность</label>
+          <input class="inp" id="lr-conc" type="number" value="3"></div>
+        <button class="btn btn-accent btn-full" onclick="startLandingResearch()">🌐 Собрать данные</button>
+        <button class="btn btn-ghost btn-full" onclick="transformSelectedToMd()">📝 Собрать MD</button>
+      </div>
+    </div>
+    <div style="flex:1;padding:16px;overflow-y:auto">
+      <div id="lr-status" style="font-size:.85rem;color:var(--muted);margin-bottom:10px">Выберите строки на шаге «Таблица» и запустите сбор.</div>
+      <div class="logbox" id="lr-log" style="max-height:220px"></div>
+      <div id="lr-results-list" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <div id="lsub-md" style="display:none;flex:1;flex-direction:column;min-height:0">
+    <div class="filter-bar">
+      <span class="badge" id="l-md-count">MD ещё не собран</span>
+      <select class="sel" id="l-md-agent" style="padding:5px 9px;font-size:.72rem">
+        <option value="codex">Codex для MD</option>
+        <option value="template">Локальный fallback</option>
+      </select>
+      <button class="btn btn-ghost" style="padding:5px 12px" onclick="buildLandingMdFromSelection()">🤖 Данные → MD через Codex</button>
+      <button class="btn btn-accent" style="padding:5px 12px" onclick="switchLandingTab('html')">Дальше: HTML</button>
+    </div>
+    <div style="padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border)">
+      <label class="lbl">Дополнительный промпт для MD (Инструкции для текста)</label>
+      <textarea id="l-md-custom-prompt" class="inp" rows="2" placeholder="Например: Напиши текст дерзко, сделай упор на низкие цены, добавь блок 'Почему мы лучшие', используй смайлики."></textarea>
+    </div>
+    <div id="l-md-log-wrap" style="display:none;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--border)">
+      <div class="logbox" id="l-md-log" style="max-height:120px"></div>
+    </div>
+    <textarea class="inp" id="l-md" placeholder="# Компания&#10;&#10;**Адрес:** ...&#10;**Телефон:** ...&#10;&#10;## Отзывы клиентов&#10;- ..." style="flex:1;border-radius:0;border-left:none;border-right:none;border-bottom:none;font-family:ui-monospace,monospace;font-size:.82rem;line-height:1.6;resize:none"></textarea>
+  </div>
+
+  <div id="lsub-html" style="display:none;flex:1;min-height:0">
+    <div class="sidebar" style="width:320px">
+      <div class="sidebar-hd">MD → HTML</div>
+      <div class="sidebar-body">
+        <div class="fg">
+          <label class="lbl">Выбор компании</label>
+          <button class="btn btn-ghost btn-full" style="margin-bottom:5px;justify-content:flex-start;padding:7px 12px"
+            onclick="useSelectedForLanding()">☑ Выбранные галочками</button>
+          <button class="btn btn-ghost btn-full" style="margin-bottom:5px;justify-content:flex-start;padding:7px 12px"
+            onclick="useNoSiteForLanding()">∅ Все без сайта</button>
+          <button class="btn btn-ghost btn-full" style="margin-bottom:8px;justify-content:flex-start;padding:7px 12px"
+            onclick="useAllForLanding()">📋 Все компании</button>
+          <div style="font-size:.7rem;color:var(--muted);margin-bottom:4px">Или выбрать одну вручную:</div>
+          <select class="sel" style="width:100%" id="l-company" onchange="selectLandingCompany(this.value)">
+            <option value="">— из списка —</option>
+          </select>
+          <div id="l-active-company" style="font-size:.72rem;color:var(--ok);margin-top:5px;min-height:16px"></div>
+        </div>
+        <div class="fg">
+          <label class="lbl">Шаблон</label>
+          <div id="l-selected-tmpl-info" style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:8px 10px;margin-bottom:7px">
+            <div style="font-size:.68rem;color:var(--muted)">Выбран:</div>
+            <div style="font-size:.8rem;font-weight:600;color:var(--a2)" id="l-selected-tmpl-name">не выбран</div>
+          </div>
+          <button class="btn btn-ghost btn-full" onclick="switchLandingTab('templates')">🎨 Выбрать в галерее</button>
+        </div>
+        <div class="fg"><label class="lbl">Тип шаблона</label>
+          <select class="sel" style="width:100%" id="l-tmpl-type">
+            <option value="standard">Стандартный лендинг</option>
+            <option value="taplink">⚡ Tap-link (ссылки + соцсети)</option>
+            <option value="selling">💰 Продающий (акцент на CTA)</option>
+            <option value="demo">📸 Демо / портфолио</option>
+          </select>
+        </div>
+        <div class="fg"><label class="lbl">AI / режим сборки</label>
+          <select class="sel" style="width:100%;margin-bottom:6px" id="l-agent" onchange="updateLandingModels()">
+            <option value="template">Быстро: локальный HTML по шаблону</option>
+            <option value="codex">Codex</option>
+          </select>
+          <select class="sel" style="width:100%" id="l-model">
+            <option value="">Default</option>
+          </select>
+        </div>
+        <button class="btn btn-accent btn-full" id="l-gen-btn" onclick="startLandingFromMd()">✨ HTML из MD</button>
+        <button class="btn btn-ghost btn-full" id="l-batch-btn" onclick="openBatchLandingModal()">📦 HTML для выбранных</button>
+        <div id="l-log-wrap" style="display:none;margin-top:10px">
+          <div class="logbox" id="l-log"></div>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+      <div style="display:flex;gap:6px;padding:7px 10px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;align-items:center">
+        <span id="l-preview-label" style="font-size:.78rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">Превью появится здесь</span>
+        <select class="sel" id="l-device" onchange="changePreviewDevice()" style="padding:3px 7px;font-size:.72rem">
+          <option value="100%">🖥 Desktop</option>
+          <option value="390px">📱 Mobile</option>
+          <option value="768px">📟 Tablet</option>
+        </select>
+        <button class="btn btn-ghost" style="padding:4px 9px;font-size:.72rem" id="l-dl-btn" disabled onclick="downloadLanding()">💾 HTML</button>
+        <button class="btn btn-ghost" style="padding:4px 9px;font-size:.72rem" id="l-open-btn" disabled onclick="openLandingTab()">↗</button>
+        <button class="btn btn-ok" style="padding:4px 9px;font-size:.72rem" id="l-pub-btn" disabled onclick="showPublishGuide()">🌐 Опубликовать</button>
+      </div>
+      <div id="l-placeholder" style="flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:var(--muted)">
+        <div style="font-size:3rem">🏗️</div>
+        <div style="font-size:.9rem">Соберите MD и нажмите «HTML из MD»</div>
+      </div>
+      <div id="l-preview-wrap" style="flex:1;display:none;flex-direction:column;min-height:0;overflow:auto">
+        <iframe id="l-iframe" src="" scrolling="yes" style="border:none;width:100%;height:100%;min-height:100%;transition:width .3s;margin:0 auto;display:block;overflow:auto"></iframe>
+      </div>
+      <div id="l-refine-bar" style="display:none;border-top:1px solid var(--border);background:var(--surface)">
+        <div id="l-refine-log" style="display:none;margin:6px 10px 0">
+          <div class="logbox" id="l-refine-logbox" style="max-height:80px"></div>
+        </div>
+        <div class="chat-bar" style="border-top:none;padding-top:6px">
+          <textarea id="l-refine-input" placeholder="Что изменить в HTML..." rows="1" onkeydown="refineKey(event)" oninput="autoResize(this)"></textarea>
+          <button class="btn btn-accent" onclick="refineLanding()" id="l-refine-btn" disabled>✨ Изменить</button>
+          <button class="btn btn-ok" onclick="saveLandingResult()" id="l-save-btn" disabled style="font-size:.75rem">✅ Готово</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="lsub-send" style="display:none;flex:1;flex-direction:column;min-height:0">
+    <div class="filter-bar">
+      <span class="badge">HTML-страницы из таблицы</span>
+      <button class="btn btn-accent" style="padding:5px 12px" onclick="switchTab('send');buildSendQueue()">Открыть общую отправку</button>
+    </div>
+    <div id="l-send-list" style="flex:1;overflow-y:auto;padding:16px"></div>
+  </div>
+
+  <div id="lsub-templates" style="display:none;flex:1;min-height:0">
+    <div class="sidebar" style="width:340px">
+      <div class="sidebar-hd">Шаблоны html-anything</div>
+      <div class="sidebar-body">
+        <input class="inp" id="tmpl-search" placeholder="🔍 Поиск шаблона..." oninput="filterTemplates()" style="margin-bottom:8px">
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px" id="cat-filters"></div>
+        <div id="ha-gallery" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+    </div>
+    <div style="flex:1;padding:16px;overflow-y:auto">
+      <div class="info-box">Выбранный шаблон используется в промпте Codex и в локальном fallback-рендере. Внешняя библиотека html-anything необязательна: приложение работает автономно с локальными шаблонами.</div>
+      <div class="fg"><label class="lbl">Свой шаблон</label>
+        <input class="inp" id="tmpl-name" placeholder="Премиум агентство"></div>
+      <div class="fg"><label class="lbl">Промт</label>
+        <textarea class="inp" id="tmpl-body" rows="8" placeholder="【СТИЛЬ】 ...&#10;【СЕКЦИИ】 ..."></textarea>
+      </div>
+      <button class="btn btn-accent" onclick="saveTemplate()">💾 Сохранить свой шаблон</button>
+      <button class="btn btn-ghost" onclick="showTemplateHint()">💡 Инструкция</button>
+      <div class="sec-title" style="margin-top:14px">Сохранённые шаблоны</div>
+      <div id="custom-tmpl-list" style="margin-top:6px"></div>
+    </div>
+  </div>
+
+  <!-- Ховер-превью шаблона (абсолютное позиционирование) -->
+  <div id="tmpl-hover-preview" style="display:none;position:fixed;z-index:500;
+       background:var(--surface);border:1px solid var(--border);border-radius:12px;
+       box-shadow:0 8px 40px rgba(0,0,0,.5);overflow:hidden;pointer-events:none;
+       width:420px;height:300px">
+    <div id="tmpl-hover-label" style="padding:8px 12px;background:var(--s2);border-bottom:1px solid var(--border);
+         font-size:.78rem;font-weight:600;display:flex;align-items:center;gap:7px"></div>
+    <iframe id="tmpl-hover-iframe" style="width:960px;height:600px;border:none;
+            transform:scale(0.4375);transform-origin:top left;pointer-events:none" src=""></iframe>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TAB 5: АНАЛИЗ УСТАРЕВШИХ САЙТОВ
+══════════════════════════════════════════ -->
+<div class="panel" id="tab-screens" style="flex-direction:row">
+  <div class="sidebar">
+    <div class="sidebar-hd">Анализ сайтов</div>
+    <div class="sidebar-body">
+      <div class="fg"><label class="lbl">Источник</label>
+        <select class="sel" style="width:100%" id="sc-src" onchange="onScSrcChange()">
+          <option value="all">Все с сайтом (из таблицы)</option>
+          <option value="selected">Выбранные</option>
+          <option value="old">Только устаревшие (&lt;50 баллов)</option>
+          <option value="manual">Ввести вручную</option>
+        </select>
+      </div>
+      <div id="sc-manual" style="display:none">
+        <div class="fg"><label class="lbl">URL (каждый с новой строки)</label>
+          <textarea class="inp" id="sc-urls" rows="5" placeholder="https://example.ru"></textarea>
+        </div>
+      </div>
+      <div style="background:var(--s2);border-radius:10px;padding:12px;margin-bottom:12px">
+        <label style="display:flex;gap:7px;align-items:center;font-size:.8rem;font-weight:600;margin-bottom:10px">
+          <input type="checkbox" id="sc-concept" onchange="toggleConceptOpts()">
+          🎨 Генерировать концепт (DALL-E 3)
+        </label>
+        <div id="sc-concept-opts" style="display:none">
+          <div class="fg"><label class="lbl">OpenAI API Key</label>
+            <input class="inp" id="sc-oai" type="password" placeholder="sk-..."></div>
+          <div class="fg"><label class="lbl">Промт (пусто = авто)</label>
+            <textarea class="inp" id="sc-prompt" rows="3" placeholder="Modern minimal redesign..."></textarea></div>
+        </div>
+      </div>
+      <button class="btn btn-accent btn-full" onclick="startScreenshots()">📸 Запустить</button>
+      <div id="sc-log-wrap" style="display:none;margin-top:10px">
+        <div class="logbox" id="sc-log"></div>
+      </div>
+    </div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;min-height:0">
+    <!-- Подвкладки -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0">
+      <button id="sctab-screenshots" class="tab-btn active" style="border-radius:0;border-bottom:none;padding:8px 18px;font-size:.8rem"
+        onclick="switchScreenTab('screenshots')">📸 Скриншоты</button>
+      <button id="sctab-analysis" class="tab-btn" style="border-radius:0;border-bottom:none;padding:8px 18px;font-size:.8rem"
+        onclick="switchScreenTab('analysis')">🔍 Анализ & Концепт</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:16px">
+      <!-- Подвкладка 1: Скриншоты -->
+      <div id="sc-panel-screenshots">
+        <div id="sc-idle" style="color:var(--muted);font-size:.875rem">Выберите источник и нажмите «Запустить».</div>
+        <div id="sc-results"></div>
+      </div>
+      <!-- Подвкладка 2: Анализ -->
+      <div id="sc-panel-analysis" style="display:none">
+        <div id="sc-analysis-idle" style="color:var(--muted);font-size:.875rem">Сначала сделайте скриншоты, затем нажмите «Анализировать» на нужном сайте.</div>
+        <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div class="fg" style="margin:0;flex:1;min-width:160px"><label class="lbl" style="margin:0 0 3px">AI-агент для анализа</label>
+            <select class="sel" id="sc-agent">
+              <option value="codex">Codex</option>
+            </select>
+          </div>
+          <div class="fg" style="margin:0;flex:2;min-width:200px"><label class="lbl" style="margin:0 0 3px">OpenAI key (для DALL-E концепта)</label>
+            <input class="inp" id="sc-oai-analysis" type="password" placeholder="sk-... (опционально)">
+          </div>
+        </div>
+        <div id="sc-analysis-results"></div>
+      </div>
+    </div>
+    <div class="chat-out" id="chat-out-screens"></div>
+    <div class="chat-bar">
+      <textarea id="chat-screens" placeholder="Опишите что изменить в анализе сайтов..." rows="1"
+        onkeydown="chatKey(event,'screens')" oninput="autoResize(this)"></textarea>
+      <button class="btn btn-ghost" onclick="sendChat('screens')">↗ Запрос</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TAB 6: ОТПРАВИТЬ
+══════════════════════════════════════════ -->
+<div class="panel" id="tab-send" style="flex-direction:row">
+  <div class="sidebar">
+    <div class="sidebar-hd">Параметры отправки</div>
+    <div class="sidebar-body">
+      <div class="fg"><label class="lbl">Что отправляем</label>
+        <select class="sel" style="width:100%" id="send-what">
+          <option value="landing">Лендинг (HTML файл)</option>
+          <option value="legal_report">Отчёт аудита 152-ФЗ</option>
+          <option value="concept">Концепт нового сайта</option>
+          <option value="custom">Своё сообщение</option>
+        </select>
+      </div>
+      <div class="fg"><label class="lbl">Канал для всех (глобально)</label>
+        <select class="sel" style="width:100%" id="send-channel-global" onchange="applyGlobalChannel()">
+          <option value="">— выбрать для всех —</option>
+          <option value="email">✉️ Email</option>
+          <option value="telegram">✈️ Telegram</option>
+          <option value="whatsapp">📱 WhatsApp</option>
+          <option value="visit">🚶 Визит по адресу</option>
+        </select>
+      </div>
+      <div class="fg"><label class="lbl">Шаблон письма (переменные: {name}, {address})</label>
+        <textarea class="inp" id="send-msg-tmpl" rows="7" placeholder="Здравствуйте!&#10;&#10;Меня зовут Алексей, я занимаюсь разработкой сайтов для {name}.&#10;&#10;Мы подготовили для вас..."></textarea>
+      </div>
+      <button class="btn btn-accent btn-full" onclick="buildSendQueue()">📋 Сформировать список</button>
+      <div id="send-all-wrap" style="display:none;margin-top:8px">
+        <button class="btn btn-ok btn-full" onclick="openSendAllModal()">📤 Отправить всем</button>
+      </div>
+    </div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;min-height:0">
+    <!-- Статус-бар -->
+    <div id="send-stats" style="display:none;padding:8px 14px;background:var(--surface);
+         border-bottom:1px solid var(--border);font-size:.78rem;display:flex;gap:16px;flex-shrink:0">
+      <span>Всего: <b id="ss-total">0</b></span>
+      <span style="color:var(--ok)">✅ <b id="ss-sent">0</b></span>
+      <span style="color:var(--warn)">🚶 <b id="ss-visit">0</b></span>
+      <span style="color:var(--muted)">⏳ <b id="ss-wait">0</b></span>
+      <button class="btn btn-ghost" style="margin-left:auto;padding:3px 10px;font-size:.72rem" onclick="exportSendList()">💾 CSV</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:14px">
+      <div id="send-idle" style="color:var(--muted);font-size:.875rem">
+        Сформируйте список. Система автоматически выберет лучший канал для каждой компании:<br>
+        email → Telegram → WhatsApp → визит по адресу
+      </div>
+      <div id="send-queue" style="display:none">
+        <div id="send-list"></div>
+      </div>
+    </div>
+    <div class="chat-out" id="chat-out-send"></div>
+    <div class="chat-bar">
+      <textarea id="chat-send" placeholder="Опишите как организовать отправку..." rows="1"
+        onkeydown="chatKey(event,'send')" oninput="autoResize(this)"></textarea>
+      <button class="btn btn-ghost" onclick="sendChat('send')">↗ Запрос</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- /#main -->
+
+<!-- ══ MODALS ══ -->
+<div id="agent-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeModal('agent-modal')">
+  <div class="modal">
+    <h2>🤖 AI Агент</h2>
+    <p style="font-size:.8rem;color:var(--muted);margin-bottom:14px">Public build uses Codex only. Other local agents are not exposed.</p>
+    <div id="agent-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
+    <button class="btn btn-ghost" onclick="closeModal('agent-modal')">Закрыть</button>
+  </div>
+</div>
+
+<div id="columns-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeModal('columns-modal')">
+  <div class="modal" style="max-width:520px">
+    <h2>▦ Колонки таблицы</h2>
+    <p style="font-size:.78rem;color:var(--muted);margin-bottom:12px">Галочки управляют видимостью в редакторе и вкладке лендингов. Данные в файле не удаляются.</p>
+    <div id="cols-list" style="max-height:46vh;overflow-y:auto;margin-bottom:12px"></div>
+    <button class="btn btn-ghost btn-full" onclick="addBlankColumn()">＋ Добавить пустой столбец</button>
+    <button class="btn btn-accent btn-full" onclick="closeModal('columns-modal')">Готово</button>
+  </div>
+</div>
+
+<div id="batch-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeModal('batch-modal')">
+  <div class="modal">
+    <h2>▶ Пакетное действие</h2>
+    <p style="font-size:.82rem;color:var(--muted);margin-bottom:14px">Выбрано: <b id="batch-count">0</b></p>
+    <button class="btn btn-accent btn-full" onclick="batchGoLanding()">🏗️ Лендинги для всех</button>
+    <button class="btn btn-ghost btn-full" onclick="batchGoLegal()">⚖️ Аудит 152-ФЗ</button>
+    <button class="btn btn-ghost btn-full" onclick="batchGoScreens()">📸 Скрины</button>
+    <button class="btn btn-ghost btn-full" onclick="batchGoSend()">📤 В отправку</button>
+    <button class="btn btn-ghost btn-full" onclick="closeModal('batch-modal')">Отмена</button>
+  </div>
+</div>
+
+<div id="batch-landing-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeModal('batch-landing-modal')">
+  <div class="modal">
+    <h2>📦 Пакетная генерация лендингов</h2>
+    <p style="font-size:.8rem;color:var(--muted);margin-bottom:12px" id="bl-info">Будет сгенерировано <b id="bl-count">0</b> лендингов для компаний без сайта.</p>
+    <div style="font-size:.78rem;margin-bottom:10px" id="batch-pool-badge">🎨 Пул пуст — используется выбранный шаблон</div>
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <button class="btn btn-ghost" style="flex:1;font-size:.75rem" onclick="switchLandingTab('templates');closeModal('batch-landing-modal')">🎨 Выбрать шаблоны в галерею</button>
+      <button class="btn btn-ghost" style="font-size:.75rem;padding:0 8px" onclick="clearBatchPool()" title="Очистить пул">✕</button>
+    </div>
+    <div class="fg"><label class="lbl">Параллельность</label>
+      <input class="inp" id="bl-conc" type="number" value="2"></div>
+    <button class="btn btn-accent btn-full" onclick="startBatchLanding()">✨ Запустить</button>
+    <div id="bl-log-wrap" style="display:none;margin-top:10px"><div class="logbox" id="bl-log"></div></div>
+    <div id="bl-result" style="display:none;margin-top:10px">
+      <div style="color:var(--ok);font-size:.85rem;margin-bottom:8px">✅ Готово!</div>
+      <div id="bl-result-list" style="font-size:.78rem;color:var(--muted)"></div>
+    </div>
+    <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="closeModal('batch-landing-modal')">Закрыть</button>
+  </div>
+</div>
+
+<div id="add-template-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeModal('add-template-modal')">
+  <div class="modal">
+    <h2>➕ Добавить шаблон</h2>
+    <div class="fg"><label class="lbl">Название шаблона</label>
+      <input class="inp" id="tmpl-name" placeholder="Премиум агентство"></div>
+    <div class="fg"><label class="lbl">Инструкции для AI (промт)</label>
+      <textarea class="inp" id="tmpl-body" rows="10"
+        placeholder="【СТИЛЬ】 Тёмный фон, золотые акценты...&#10;【СЕКЦИИ】&#10;1. Hero..."></textarea>
+    </div>
+    <button class="btn btn-accent btn-full" onclick="saveTemplate()">💾 Сохранить шаблон</button>
+    <button class="btn btn-ghost btn-full" onclick="closeModal('add-template-modal')">Отмена</button>
+  </div>
+</div>
+
+<div id="hint-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeModal('hint-modal')">
+  <div class="modal">
+    <h2>💡 Как создать шаблон</h2>
+    <pre id="hint-text" style="font-size:.75rem;color:var(--muted);white-space:pre-wrap;line-height:1.6;
+         background:var(--s2);border-radius:8px;padding:12px;max-height:50vh;overflow-y:auto"></pre>
+    <button class="btn btn-ghost btn-full" style="margin-top:12px" onclick="closeModal('hint-modal')">Закрыть</button>
+  </div>
+</div>
+
+<div id="publish-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeModal('publish-modal')">
+  <div class="modal" style="max-width:640px">
+    <h2>🌐 Как опубликовать лендинг</h2>
+    <div style="font-size:.82rem;line-height:1.8;color:var(--text)">
+      <div style="background:var(--s2);border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-weight:700;margin-bottom:8px;color:var(--a2)">Вариант 1: Tilda (бесплатно)</div>
+        <ol style="padding-left:18px;color:var(--muted)">
+          <li>Скачайте HTML файл кнопкой «💾 HTML»</li>
+          <li>Войдите на <b style="color:var(--text)">tilda.cc</b> → Создать сайт</li>
+          <li>Добавьте блок «HTML/JS/CSS» (в нулевом блоке или Zero Block)</li>
+          <li>Вставьте содержимое HTML в поле кода</li>
+          <li>Опубликуйте → получите ссылку вида <code>yourdomain.tilda.ws</code></li>
+        </ol>
+      </div>
+      <div style="background:var(--s2);border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-weight:700;margin-bottom:8px;color:var(--a2)">Вариант 2: GitHub Pages (бесплатно, ссылка навсегда)</div>
+        <ol style="padding-left:18px;color:var(--muted)">
+          <li>Создайте репозиторий на <b style="color:var(--text)">github.com</b></li>
+          <li>Загрузите HTML файл как <code>index.html</code></li>
+          <li>Settings → Pages → Deploy from branch (main)</li>
+          <li>Ссылка: <code>username.github.io/repo-name</code></li>
+        </ol>
+      </div>
+      <div style="background:var(--s2);border-radius:10px;padding:14px">
+        <div style="font-weight:700;margin-bottom:8px;color:var(--a2)">Вариант 3: Netlify Drop (30 сек)</div>
+        <ol style="padding-left:18px;color:var(--muted)">
+          <li>Зайдите на <b style="color:var(--text)">app.netlify.com/drop</b></li>
+          <li>Перетащите HTML файл в окно браузера</li>
+          <li>Готово! Ссылка появится сразу (вида <code>random-name.netlify.app</code>)</li>
+        </ol>
+      </div>
+    </div>
+    <button class="btn btn-ghost btn-full" style="margin-top:14px" onclick="closeModal('publish-modal')">Закрыть</button>
+  </div>
+</div>
+
+<div id="send-all-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeModal('send-all-modal')">
+  <div class="modal">
+    <h2>📤 Отправить всем</h2>
+    <p style="font-size:.82rem;color:var(--muted);margin-bottom:14px">
+      Выберите канал и подтвердите отправку. Система сформирует индивидуальное письмо для каждой компании.
+    </p>
+    <div id="send-all-preview" style="max-height:300px;overflow-y:auto;margin-bottom:14px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-accent btn-full" onclick="confirmSendAll()">✅ Подтвердить</button>
+      <button class="btn btn-ghost btn-full" onclick="closeModal('send-all-modal')">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<div id="msg-preview-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeModal('msg-preview-modal')">
+  <div class="modal" style="max-width:540px">
+    <h2 id="msg-modal-title">Сообщение</h2>
+    <pre id="msg-modal-body" style="font-size:.8rem;line-height:1.7;white-space:pre-wrap;
+         background:var(--s2);border-radius:8px;padding:14px;max-height:300px;overflow-y:auto;
+         color:var(--text)"></pre>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-ghost" onclick="copyMsgToClipboard()">📋 Копировать</button>
+      <button class="btn btn-ghost" onclick="closeModal('msg-preview-modal')">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/app.js?v=landing-md-html-direct-20260530"></script>
+</body>
+</html>
+
+</html>
